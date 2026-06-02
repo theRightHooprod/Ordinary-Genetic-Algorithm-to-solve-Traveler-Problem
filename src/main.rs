@@ -3,8 +3,6 @@ struct Point {
     y: u8,
 }
 
-impl Point {}
-
 // struct FixedGrid {
 //     matrix: [[Point; 20]; 100],
 // }
