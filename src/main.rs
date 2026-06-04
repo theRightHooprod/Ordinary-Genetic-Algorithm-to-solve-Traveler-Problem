@@ -150,12 +150,12 @@ impl Chromosome {
         let mut points_file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open("points.csv")?;
+            .open("../points.csv")?;
 
         let mut distance_file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open("distance.csv")?;
+            .open("../distance.csv")?;
 
         for rgen in self.gens {
             if let Some(current_gen) = points.get(&rgen) {
@@ -196,5 +196,5 @@ fn main() {
 
     asd.tournament(&point_map);
 
-    // println!("{:?}", childs)
+    println!("{:?}", childs)
 }
