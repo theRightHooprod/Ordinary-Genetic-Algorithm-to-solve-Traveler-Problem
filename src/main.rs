@@ -150,7 +150,7 @@ impl Chromosome {
         let mut points_file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open("/points.csv")?;
+            .open("points.csv")?;
 
         let mut distance_file = OpenOptions::new()
             .create(true)
