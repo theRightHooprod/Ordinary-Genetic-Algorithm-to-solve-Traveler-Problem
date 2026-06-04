@@ -33,5 +33,5 @@ def animate(i):
     plt.tight_layout()
 
 # Refresh every 500ms
-ani = FuncAnimation(fig, animate, interval=5000, cache_frame_data=False)
+ani = FuncAnimation(fig, animate, interval=500, cache_frame_data=False)
 plt.show()
