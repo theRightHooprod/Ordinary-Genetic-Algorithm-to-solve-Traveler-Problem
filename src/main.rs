@@ -32,6 +32,26 @@ impl Population {
 
         [(); 5].map(|_| &self.chormosomes[rng.random_range(1..100)])
     }
+
+    fn tournament(&self, points: &HashMap<u8, Gen>) -> Population {
+        let child_population: [Chromosome; 100] = [(); 100].map(|_| {
+            let choosen: [&Chromosome; 5] = self.get_five_percent_random();
+
+            let current_best = choosen
+                .iter()
+                .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
+
+            let best = *current_best.copied().unwrap();
+
+            best.reproduction(points);
+
+            best
+        });
+
+        Population {
+            chormosomes: child_population,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -72,6 +92,52 @@ impl Chromosome {
 
         row_distance
     }
+
+    fn reproduction(mut self, points: &HashMap<u8, Gen>) {
+        let mut rng = rand::rng();
+
+        if rng.random_bool(0.5) {
+            //"Swap algorithm"
+
+            // 1. Get random start point
+            let start = rng.random_range(0..20);
+
+            // 2. Get random length that fits remaining space
+            let max_len = 20 - start;
+            if max_len <= 1 {
+                return;
+            } // Too small to swap within itself
+            let len = rng.random_range(1..=max_len);
+
+            // 3. Find another non-overlapping spot to swap with, or swap with neighbor
+            // Genetic algorithm mutation style: reverse the chosen segment
+            let mut left = start;
+            let mut right = start + len - 1;
+
+            while left < right {
+                self.gens.swap(left, right);
+                left += 1;
+                right -= 1;
+            }
+        } else {
+            // 1. Pick random start point
+            let start = rng.random_range(0..20);
+
+            // 2. Pick random length that fits remaining space
+            let max_len = 20 - start;
+            if max_len <= 1 {
+                return;
+            } // Need at least 2 elements to invert
+            let len = rng.random_range(2..=max_len);
+
+            // 3. Invert the selected slice inside bounds
+            let end = start + len;
+            let slice = &mut self.gens[start..end];
+            slice.reverse();
+        }
+
+        self.distance = self.calculate_gen_distances(points);
+    }
 }
 
 fn main() {
@@ -100,5 +166,7 @@ fn main() {
 
     let asd = Population::generate_random(&point_map);
 
-    println!("{:?}", asd)
+    let childs = asd.tournament(&point_map);
+
+    println!("{:?}", childs)
 }
