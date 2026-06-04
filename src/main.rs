@@ -54,7 +54,7 @@ impl Population {
                 Err(e) => eprintln!("Failed: {}", e),
             }
 
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_millis(300));
 
             best
         });
