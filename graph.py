@@ -2,36 +2,58 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 
-# Setup side-by-side plots
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
+# Setup static plot traits once outside loop
+ax1.set_title('All Routes Saved')
+ax1.grid(True, alpha=0.3)
+ax2.set_title('Distance History')
+ax2.grid(True, alpha=0.3)
+
+# Track how many points processed
+state = {"last_points_row": 0, "last_dist_row": 0, "generation": 0}
+
 def animate(i):
-    # --- Graph 1: Route (X, Y) ---
     try:
         df_points = pd.read_csv('points.csv', names=['X', 'Y'])
-        ax1.clear()
-        ax1.plot(df_points['X'], df_points['Y'], marker='o', color='blue', linestyle='-')
-        ax1.set_title('Route (X, Y)')
-        ax1.set_xlabel('X')
-        ax1.set_ylabel('Y')
-        ax1.grid(True, alpha=0.3)
+        current_len = len(df_points)
+        
+        # Only plot if new data arrived
+        if current_len > state["last_points_row"]:
+            # Slice new chunk
+            new_data = df_points.iloc[state["last_points_row"]:]
+            
+            # Unique color for this generation batch
+            gen_color = plt.cm.jet((state["generation"] * 15) % 256)
+            
+            # Plot new segment without clearing old ones
+            ax1.plot(new_data['X'], new_data['Y'], marker='o', color=gen_color, linestyle='-', alpha=0.7)
+            
+            state["last_points_row"] = current_len
+            state["generation"] += 1
     except Exception:
-        pass  # Handle empty file or Rust write collision
+        pass
 
-    # --- Graph 2: Distance Over Time ---
     try:
         df_dist = pd.read_csv('distance.csv', names=['Distance'])
-        ax2.clear()
-        ax2.plot(df_dist.index, df_dist['Distance'], color='red', linestyle='-')
-        ax2.set_title('Distance over Time')
-        ax2.set_xlabel('Time Step')
-        ax2.set_ylabel('Distance')
-        ax2.grid(True, alpha=0.3)
+        current_dist_len = len(df_dist)
+        
+        if current_dist_len > state["last_dist_row"]:
+            # Re-draw full distance metric line sequentially
+            ax2.clear()
+            ax2.grid(True, alpha=0.3)
+            ax2.set_title('Distance over Time')
+            
+            # Use colormap to color time steps
+            ax2.scatter(df_dist.index, df_dist['Distance'], c=df_dist.index, cmap='jet', s=10)
+            ax2.plot(df_dist.index, df_dist['Distance'], color='grey', alpha=0.5)
+            
+            state["last_dist_row"] = current_dist_len
     except Exception:
-        pass  # Handle empty file or Rust write collision
+        pass
 
-    plt.tight_layout()
+    return []
 
-# Refresh every 500ms
-ani = FuncAnimation(fig, animate, interval=500, cache_frame_data=False)
+# Run loop
+ani = FuncAnimation(fig, animate, interval=333, cache_frame_data=False)
 plt.show()
