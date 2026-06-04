@@ -1,5 +1,7 @@
 use rand::RngExt;
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 struct Gen {
     x: u8,
@@ -44,6 +46,11 @@ impl Population {
             let best = *current_best.copied().unwrap();
 
             best.reproduction(points);
+
+            match best.log_route(points) {
+                Ok(_) => println!("Success written"),
+                Err(e) => eprintln!("Failed: {}", e),
+            }
 
             best
         });
@@ -138,6 +145,27 @@ impl Chromosome {
 
         self.distance = self.calculate_gen_distances(points);
     }
+
+    fn log_route(self, points: &HashMap<u8, Gen>) -> std::io::Result<()> {
+        let mut points_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("points.csv")?;
+
+        let mut distance_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("distance.csv")?;
+
+        for rgen in self.gens {
+            if let Some(current_gen) = points.get(&rgen) {
+                writeln!(points_file, "{},{}", current_gen.x, current_gen.y)?;
+            }
+        }
+
+        writeln!(distance_file, "{}", self.distance)?;
+        Ok(())
+    }
 }
 
 fn main() {
@@ -166,7 +194,7 @@ fn main() {
 
     let asd = Population::generate_random(&point_map);
 
-    let childs = asd.tournament(&point_map);
+    asd.tournament(&point_map);
 
-    println!("{:?}", childs)
+    // println!("{:?}", childs)
 }
