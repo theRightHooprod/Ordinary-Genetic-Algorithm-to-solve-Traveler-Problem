@@ -196,5 +196,5 @@ fn main() {
 
     asd.tournament(&point_map);
 
-    println!("{:?}", childs)
+    // println!("{:?}", childs)
 }
