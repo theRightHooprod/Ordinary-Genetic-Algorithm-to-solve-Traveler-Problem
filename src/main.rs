@@ -2,6 +2,8 @@ use rand::RngExt;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::thread;
+use std::time::Duration;
 
 struct Gen {
     x: u8,
@@ -51,6 +53,8 @@ impl Population {
                 Ok(_) => println!("Success written"),
                 Err(e) => eprintln!("Failed: {}", e),
             }
+
+            thread::sleep(Duration::from_secs(1));
 
             best
         });
