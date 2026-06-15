@@ -5,6 +5,7 @@ use std::io::Write;
 use std::thread;
 use std::time::Duration;
 
+#[derive(Debug, Clone, Copy)]
 struct Gen {
     x: u8,
     y: u8,
@@ -20,15 +21,21 @@ impl Gen {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Population {
+struct Population<'a> {
     chormosomes: [Chromosome; 100],
+    points: &'a HashMap<u8, Gen>,
 }
 
-impl Population {
-    fn generate_random(points: &HashMap<u8, Gen>) -> Population {
-        Population {
-            chormosomes: [(); 100].map(|_| Chromosome::generate_random(points)),
+impl<'a> Population<'a> {
+    fn new(points: &'a HashMap<u8, Gen>) -> Self {
+        Self {
+            chormosomes: Self::generate_random(points),
+            points: points,
         }
+    }
+
+    fn generate_random(points: &HashMap<u8, Gen>) -> [Chromosome; 100] {
+        [(); 100].map(|_| Chromosome::generate_random(points))
     }
 
     fn get_five_percent_random(&self) -> [&Chromosome; 5] {
@@ -37,9 +44,9 @@ impl Population {
         [(); 5].map(|_| &self.chormosomes[rng.random_range(1..100)])
     }
 
-    fn tournament(&self, points: &HashMap<u8, Gen>) -> Population {
+    fn tournament(&self) -> Self {
         let child_population: [Chromosome; 100] = [(); 100].map(|_| {
-            let choosen: [&Chromosome; 5] = self.get_five_percent_random();
+            let choosen: &[&Chromosome; 5] = &self.get_five_percent_random();
 
             let current_best = choosen
                 .iter()
@@ -47,9 +54,10 @@ impl Population {
 
             let best = *current_best.copied().unwrap();
 
-            best.reproduction(points);
+            best.reproduction(&self.points);
 
-            match best.log_route(points) {
+            //Log every route in csv file to export and graphical visualize
+            match best.log_route(&self.points) {
                 Ok(_) => println!("Success written"),
                 Err(e) => eprintln!("Failed: {}", e),
             }
@@ -59,8 +67,9 @@ impl Population {
             best
         });
 
-        Population {
+        Self {
             chormosomes: child_population,
+            points: &self.points,
         }
     }
 }
@@ -196,9 +205,7 @@ fn main() {
     point_map.insert(19, Gen { x: 12, y: 7 });
     point_map.insert(20, Gen { x: 13, y: 5 });
 
-    let asd = Population::generate_random(&point_map);
+    let asd = Population::new(&point_map);
 
-    asd.tournament(&point_map);
-
-    // println!("{:?}", childs)
+    asd.tournament();
 }
