@@ -6,13 +6,13 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy)]
-struct Gen {
+struct Point {
     x: u8,
     y: u8,
 }
 
-impl Gen {
-    fn get_distance(&self, point: &Gen) -> f64 {
+impl Point {
+    fn get_distance(&self, point: &Point) -> f64 {
         let dx = (point.x as f64) - (self.x as f64);
         let dy = (point.y as f64) - (self.y as f64);
 
@@ -20,88 +20,94 @@ impl Gen {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
 struct Population<'a> {
-    chormosomes: [Chromosome; 100],
-    points: &'a HashMap<u8, Gen>,
+    chormosomes: [Chromosome<'a>; 100],
 }
 
 impl<'a> Population<'a> {
-    fn new(points: &'a HashMap<u8, Gen>) -> Self {
+    fn new(points: &'a HashMap<u8, Point>) -> Self {
         Self {
-            chormosomes: Self::generate_random(points),
-            points: points,
+            chormosomes: [(); 100].map(|_| Chromosome::new(points)),
         }
     }
 
-    fn generate_random(points: &HashMap<u8, Gen>) -> [Chromosome; 100] {
-        [(); 100].map(|_| Chromosome::generate_random(points))
-    }
-
-    fn get_five_percent_random(&self) -> [&Chromosome; 5] {
+    fn get_five_percent_random_indices(&self) -> [usize; 5] {
         let mut rng = rand::rng();
 
-        [(); 5].map(|_| &self.chormosomes[rng.random_range(1..100)])
+        [(); 5].map(|_| rng.random_range(0..100))
     }
 
-    fn tournament(&self) -> Self {
-        let child_population: [Chromosome; 100] = [(); 100].map(|_| {
-            let choosen: &[&Chromosome; 5] = &self.get_five_percent_random();
+    fn best_distance(&self) -> &f64 {
+        &self
+            .chormosomes
+            .iter()
+            .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap())
+            .unwrap()
+            .distance
+    }
 
-            let current_best = choosen
+    fn tournament(&mut self) {
+        for _ in 0..self.chormosomes.len() {
+            let random_indices = self.get_five_percent_random_indices();
+
+            let winner_idx = *random_indices
                 .iter()
-                .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
+                .min_by(|&&a, &&b| {
+                    self.chormosomes[a]
+                        .distance
+                        .partial_cmp(&self.chormosomes[b].distance)
+                        .unwrap()
+                })
+                .unwrap();
 
-            let best = *current_best.copied().unwrap();
+            let distance_bf_reproduction = self.chormosomes[winner_idx].distance;
 
-            best.reproduction(&self.points);
+            self.chormosomes[winner_idx].reproduce();
 
-            //Log every route in csv file to export and graphical visualize
-            match best.log_route(&self.points) {
-                Ok(_) => println!("Success written"),
-                Err(e) => eprintln!("Failed: {}", e),
+            match self.chormosomes[winner_idx].log_route(&distance_bf_reproduction) {
+                Ok(_) => (),
+                Err(e) => eprintln!("{}", e),
             }
 
-            thread::sleep(Duration::from_millis(300));
-
-            best
-        });
-
-        Self {
-            chormosomes: child_population,
-            points: &self.points,
+            thread::sleep(Duration::from_millis(100))
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Chromosome {
+struct Chromosome<'a> {
     gens: [u8; 20],
     distance: f64,
+    points: &'a HashMap<u8, Point>,
 }
 
-impl Chromosome {
-    fn generate_random(points: &HashMap<u8, Gen>) -> Chromosome {
-        let mut rng = rand::rng();
-
+impl<'a> Chromosome<'a> {
+    fn new(points: &'a HashMap<u8, Point>) -> Self {
         let mut chromosome = Chromosome {
-            gens: [(); 20].map(|_| rng.random_range(1..20)),
+            gens: Chromosome::generate_random(),
             distance: 0.0,
+            points: points,
         };
 
-        let distance: f64 = chromosome.calculate_gen_distances(points);
-
-        chromosome.distance = distance;
+        chromosome.distance = chromosome.calculate_gen_distances();
 
         chromosome
     }
 
-    fn calculate_gen_distances(self, points: &HashMap<u8, Gen>) -> f64 {
-        let mut row_distance = 0.0;
-        let mut last_gen: Option<&Gen> = None;
+    fn generate_random() -> [u8; 20] {
+        let mut rng = rand::rng();
 
-        for rgen in self.gens {
-            if let Some(current_gen) = points.get(&rgen) {
+        let chromosome = [(); 20].map(|_| rng.random_range(1..20));
+
+        chromosome
+    }
+
+    fn calculate_gen_distances(&self) -> f64 {
+        let mut row_distance = 0.0;
+        let mut last_gen: Option<&Point> = None;
+
+        for rgen in &self.gens {
+            if let Some(current_gen) = &self.points.get(&rgen) {
                 if let Some(prev) = last_gen {
                     row_distance += prev.get_distance(current_gen);
                 }
@@ -113,7 +119,7 @@ impl Chromosome {
         row_distance
     }
 
-    fn reproduction(mut self, points: &HashMap<u8, Gen>) {
+    fn reproduce(&mut self) {
         let mut rng = rand::rng();
 
         if rng.random_bool(0.5) {
@@ -156,10 +162,10 @@ impl Chromosome {
             slice.reverse();
         }
 
-        self.distance = self.calculate_gen_distances(points);
+        self.distance = self.calculate_gen_distances();
     }
 
-    fn log_route(self, points: &HashMap<u8, Gen>) -> std::io::Result<()> {
+    fn log_route(&self, prev_distance: &f64) -> std::io::Result<()> {
         let mut points_file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -171,41 +177,45 @@ impl Chromosome {
             .open("distance.csv")?;
 
         for rgen in self.gens {
-            if let Some(current_gen) = points.get(&rgen) {
+            if let Some(current_gen) = &self.points.get(&rgen) {
                 writeln!(points_file, "{},{}", current_gen.x, current_gen.y)?;
             }
         }
 
-        writeln!(distance_file, "{}", self.distance)?;
+        writeln!(distance_file, "{}, {}", prev_distance, self.distance)?;
         Ok(())
     }
 }
 
 fn main() {
-    let mut point_map: HashMap<u8, Gen> = HashMap::new();
+    let mut point_map: HashMap<u8, Point> = HashMap::new();
 
-    point_map.insert(1, Gen { x: 1, y: 3 });
-    point_map.insert(2, Gen { x: 2, y: 5 });
-    point_map.insert(3, Gen { x: 2, y: 7 });
-    point_map.insert(4, Gen { x: 4, y: 2 });
-    point_map.insert(5, Gen { x: 4, y: 4 });
-    point_map.insert(6, Gen { x: 4, y: 7 });
-    point_map.insert(7, Gen { x: 4, y: 8 });
-    point_map.insert(8, Gen { x: 5, y: 3 });
-    point_map.insert(9, Gen { x: 6, y: 1 });
-    point_map.insert(10, Gen { x: 6, y: 6 });
-    point_map.insert(11, Gen { x: 7, y: 8 });
-    point_map.insert(12, Gen { x: 8, y: 2 });
-    point_map.insert(13, Gen { x: 8, y: 7 });
-    point_map.insert(14, Gen { x: 9, y: 3 });
-    point_map.insert(15, Gen { x: 10, y: 7 });
-    point_map.insert(16, Gen { x: 11, y: 1 });
-    point_map.insert(17, Gen { x: 11, y: 4 });
-    point_map.insert(18, Gen { x: 11, y: 6 });
-    point_map.insert(19, Gen { x: 12, y: 7 });
-    point_map.insert(20, Gen { x: 13, y: 5 });
+    point_map.insert(1, Point { x: 1, y: 3 });
+    point_map.insert(2, Point { x: 2, y: 5 });
+    point_map.insert(3, Point { x: 2, y: 7 });
+    point_map.insert(4, Point { x: 4, y: 2 });
+    point_map.insert(5, Point { x: 4, y: 4 });
+    point_map.insert(6, Point { x: 4, y: 7 });
+    point_map.insert(7, Point { x: 4, y: 8 });
+    point_map.insert(8, Point { x: 5, y: 3 });
+    point_map.insert(9, Point { x: 6, y: 1 });
+    point_map.insert(10, Point { x: 6, y: 6 });
+    point_map.insert(11, Point { x: 7, y: 8 });
+    point_map.insert(12, Point { x: 8, y: 2 });
+    point_map.insert(13, Point { x: 8, y: 7 });
+    point_map.insert(14, Point { x: 9, y: 3 });
+    point_map.insert(15, Point { x: 10, y: 7 });
+    point_map.insert(16, Point { x: 11, y: 1 });
+    point_map.insert(17, Point { x: 11, y: 4 });
+    point_map.insert(18, Point { x: 11, y: 6 });
+    point_map.insert(19, Point { x: 12, y: 7 });
+    point_map.insert(20, Point { x: 13, y: 5 });
 
-    let asd = Population::new(&point_map);
+    let mut asd = Population::new(&point_map);
+
+    println!("Best distance before tournament {}", &asd.best_distance());
 
     asd.tournament();
+
+    println!("Best distance after tournament {}", &asd.best_distance());
 }
