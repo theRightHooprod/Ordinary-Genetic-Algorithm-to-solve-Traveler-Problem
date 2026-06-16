@@ -35,18 +35,17 @@ def animate(i):
         pass
 
     try:
-        df_dist = pd.read_csv('distance.csv', names=['Distance'])
+        df_dist = pd.read_csv('distance.csv', names=['OldDistance', 'Distance'])
         current_dist_len = len(df_dist)
         
         if current_dist_len > state["last_dist_row"]:
             # Re-draw full distance metric line sequentially
             ax2.clear()
             ax2.grid(True, alpha=0.3)
-            ax2.set_title('Distance over Time')
+            ax2.set_title('Distance before vs after reproduction')
             
             # Use colormap to color time steps
-            ax2.scatter(df_dist.index, df_dist['Distance'], c=df_dist.index, cmap='jet', s=10)
-            ax2.plot(df_dist.index, df_dist['Distance'], color='grey', alpha=0.5)
+            ax2.scatter(df_dist['OldDistance'], df_dist['Distance'], color = "black", cmap='jet', s=10)
             
             state["last_dist_row"] = current_dist_len
     except Exception:
